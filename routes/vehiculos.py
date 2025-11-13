@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from db import get_connection
 from models import Vehiculo, VehiculoCreate
 
@@ -22,16 +22,29 @@ def crear_vehiculo(data: VehiculoCreate):
     conn.close()
     return {**data.dict(), "id": new_id}
 
+
 @router.get("/", response_model=list[Vehiculo])
-def listar_vehiculos():
+def listar_vehiculos(
+    activos_only: str = Query("true")  # 👈 viene como texto desde la app
+):
+    """
+    Lista los vehículos registrados.
+    Si activos_only=true → solo activos
+    Si activos_only=false → todos (activos + dados de baja)
+    """
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM vehiculos WHERE activo = 1")
-    rows = c.fetchall()
-    conn.close()
 
+    if activos_only.lower() == "true":
+        c.execute("SELECT * FROM vehiculos WHERE activo = 1")
+    else:
+        c.execute("SELECT * FROM vehiculos")
+
+    rows = c.fetchall()
     columnas = [desc[0] for desc in c.description]
+    conn.close()
     return [dict(zip(columnas, row)) for row in rows]
+
 
 @router.get("/{vehiculo_id}", response_model=Vehiculo)
 def obtener_vehiculo(vehiculo_id: int):
@@ -44,6 +57,7 @@ def obtener_vehiculo(vehiculo_id: int):
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
     columnas = [desc[0] for desc in c.description]
     return dict(zip(columnas, row))
+
 
 @router.delete("/{vehiculo_id}")
 def eliminar_vehiculo(vehiculo_id: int):
