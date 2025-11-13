@@ -2,37 +2,41 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from sqlalchemy.orm import Session
-from db import init_db, SessionLocal, Vehiculo
+import sqlite3
+from db import init_db
 from routes import vehiculos
+
+# ============================================================
+# 🚀 CONFIGURACIÓN PRINCIPAL DE LA API
+# ============================================================
 
 app = FastAPI(title="Gestor Vehículos API", version="1.0")
 
-# --- Configurar CORS ---
+# --- Permitir acceso desde cualquier origen (para frontend/desktop app) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # ⚠️ Podés limitar esto si querés más seguridad
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Registrar routers ---
+# --- Registrar las rutas principales ---
 app.include_router(vehiculos.router, prefix="/vehiculos", tags=["Vehículos"])
 
-# --- Inicialización de la BD al iniciar ---
+# --- Inicializar base de datos al arrancar ---
 @app.on_event("startup")
 def startup():
     init_db()
 
-# --- Endpoint raíz ---
+# --- Endpoint raíz de prueba ---
 @app.get("/")
 def root():
     return {"message": "🚗 API del Gestor de Vehículos funcionando correctamente"}
 
 
 # ============================================================
-# 🚘 ENDPOINT NUEVO: EGRESAR VEHÍCULO
+# 🚘 ENDPOINT ADICIONAL: EGRESAR VEHÍCULO (dar de baja)
 # ============================================================
 
 class EgresoRequest(BaseModel):
@@ -43,22 +47,32 @@ class EgresoRequest(BaseModel):
 @app.put("/vehiculos/{vehiculo_id}/egreso")
 def egresar_vehiculo(vehiculo_id: int, data: EgresoRequest):
     """
-    Marca un vehículo como egresado (dado de baja) en la base de datos.
+    Marca un vehículo como egresado (dado de baja) en la base de datos SQLite.
     """
-    db: Session = SessionLocal()
-    vehiculo = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
+    try:
+        conn = sqlite3.connect("vehiculos.db")
+        c = conn.cursor()
 
-    if not vehiculo:
-        db.close()
-        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+        # Verificar existencia
+        c.execute("SELECT id FROM vehiculos WHERE id = ?", (vehiculo_id,))
+        row = c.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Vehículo no encontrado")
 
-    vehiculo.activo = 0
-    vehiculo.estado_general = f"Baja: {data.tipo or 'entregado'}"
-    if data.motivo:
-        vehiculo.ubicacion = data.motivo
+        # Actualizar el registro
+        c.execute("""
+            UPDATE vehiculos
+            SET activo = 0,
+                estado_general = ?,
+                ubicacion = COALESCE(?, ubicacion)
+            WHERE id = ?
+        """, (f"Baja: {data.tipo or 'entregado'}", data.motivo, vehiculo_id))
 
-    db.commit()
-    db.refresh(vehiculo)
-    db.close()
-
-    return {"mensaje": f"Vehículo {vehiculo_id} egresado correctamente"}
+        conn.commit()
+        return {"mensaje": f"✅ Vehículo {vehiculo_id} egresado correctamente"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al dar de baja el vehículo: {e}")
+    
+    finally:
+        conn.close()
