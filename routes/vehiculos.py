@@ -3,12 +3,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Vehiculo
 from schemas import VehiculoCreate, Vehiculo as VehiculoSchema
+from typing import Optional
 
 router = APIRouter()
 
-# =====================================================
-#   CREAR VEHÍCULO
-# =====================================================
 @router.post("/", response_model=VehiculoSchema)
 def crear_vehiculo(data: VehiculoCreate, db: Session = Depends(get_db)):
     nuevo = Vehiculo(**data.dict())
@@ -18,39 +16,45 @@ def crear_vehiculo(data: VehiculoCreate, db: Session = Depends(get_db)):
     return nuevo
 
 
-# =====================================================
-#   LISTAR VEHÍCULOS (ACTIVOS, INACTIVOS, FILTROS)
-# =====================================================
 @router.get("/", response_model=list[VehiculoSchema])
 def listar_vehiculos(
-    db: Session = Depends(get_db),
-    marca: str = None,
-    dominio: str = None,
-    motor: str = None,
-    activos_only: int = 1   # 1 = solo activos | 0 = todos
+    fecha_ingreso: Optional[str] = None,
+    marca: Optional[str] = None,
+    modelo: Optional[str] = None,
+    dominio: Optional[str] = None,
+    chasis: Optional[str] = None,
+    motor: Optional[str] = None,
+    activos_only: Optional[bool] = True,
+    db: Session = Depends(get_db)
 ):
     query = db.query(Vehiculo)
 
-    # ---- Filtro de activos / inactivos ----
-    if activos_only == 1:
-        query = query.filter(Vehiculo.activo == True)
+    # --- Filtros dinámicos ---
+    if fecha_ingreso:
+        query = query.filter(Vehiculo.fecha_ingreso.contains(fecha_ingreso))
 
-    # ---- Filtros opcionales ----
     if marca:
-        query = query.filter(Vehiculo.marca.ilike(f"%{marca}%"))
+        query = query.filter(Vehiculo.marca.contains(marca))
+
+    if modelo:
+        query = query.filter(Vehiculo.modelo.contains(modelo))
 
     if dominio:
-        query = query.filter(Vehiculo.dominio.ilike(f"%{dominio}%"))
+        query = query.filter(Vehiculo.dominio.contains(dominio))
+
+    if chasis:
+        query = query.filter(Vehiculo.chasis.contains(chasis))
 
     if motor:
-        query = query.filter(Vehiculo.motor.ilike(f"%{motor}%"))
+        query = query.filter(Vehiculo.motor.contains(motor))
+
+    # Mostrar solo activos
+    if activos_only:
+        query = query.filter(Vehiculo.activo == True)
 
     return query.all()
 
 
-# =====================================================
-#   OBTENER VEHÍCULO POR ID
-# =====================================================
 @router.get("/{vehiculo_id}", response_model=VehiculoSchema)
 def obtener_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     veh = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
@@ -59,17 +63,12 @@ def obtener_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     return veh
 
 
-# =====================================================
-#   BAJA (EGRESO) VEHÍCULO
-# =====================================================
 @router.put("/{vehiculo_id}/baja")
 def baja_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     veh = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
-
     if not veh:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
 
     veh.activo = False
     db.commit()
-
-    return {"mensaje": "Vehículo dado de baja correctamente"}
+    return {"mensaje": "Vehículo dado de baja"}
