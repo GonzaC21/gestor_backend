@@ -1,29 +1,23 @@
-from pydantic import BaseModel
-from typing import Optional
+from sqlalchemy import Column, Integer, String, Boolean
+from database import Base
 
-class VehiculoBase(BaseModel):
-    fecha_ingreso: Optional[str] = None
-    marca: Optional[str] = None
-    modelo: Optional[str] = None
-    dominio: Optional[str] = None
-    chasis: Optional[str] = None
-    motor: Optional[str] = None
-    color: Optional[str] = None
-    estado_general: Optional[str] = None
-    estado: Optional[str] = None
-    llave: Optional[str] = None
-    sumario: Optional[str] = None
-    causa: Optional[str] = None
-    magistrado: Optional[str] = None
-    dependencia: Optional[str] = None
-    ubicacion: Optional[str] = None
-    activo: Optional[int] = 1
+class Vehiculo(Base):
+    __tablename__ = "vehiculos"
 
-class VehiculoCreate(VehiculoBase):
-    pass
-
-class Vehiculo(VehiculoBase):
-    id: int
-
-    class Config:
-        from_attributes = True
+    id = Column(Integer, primary_key=True, index=True)
+    fecha_ingreso = Column(String)
+    marca = Column(String)
+    modelo = Column(String)
+    dominio = Column(String)
+    chasis = Column(String)
+    motor = Column(String)
+    color = Column(String)
+    estado_general = Column(String)
+    estado = Column(String)
+    llave = Column(String)
+    sumario = Column(String)
+    causa = Column(String)
+    magistrado = Column(String)
+    dependencia = Column(String)
+    ubicacion = Column(String)
+    activo = Column(Boolean, default=True)
