@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Vehiculo
 from schemas import VehiculoCreate, Vehiculo as VehiculoSchema
-from typing import Optional
 
 router = APIRouter()
 
+# ============================================================
+#  CREAR VEHÍCULO
+# ============================================================
 @router.post("/", response_model=VehiculoSchema)
 def crear_vehiculo(data: VehiculoCreate, db: Session = Depends(get_db)):
     nuevo = Vehiculo(**data.dict())
@@ -16,45 +18,45 @@ def crear_vehiculo(data: VehiculoCreate, db: Session = Depends(get_db)):
     return nuevo
 
 
+# ============================================================
+#  LISTAR VEHÍCULOS (SOLO ACTIVOS)
+# ============================================================
 @router.get("/", response_model=list[VehiculoSchema])
 def listar_vehiculos(
-    fecha_ingreso: Optional[str] = None,
-    marca: Optional[str] = None,
-    modelo: Optional[str] = None,
-    dominio: Optional[str] = None,
-    chasis: Optional[str] = None,
-    motor: Optional[str] = None,
-    activos_only: Optional[bool] = True,
+    fecha_ingreso: str | None = None,
+    marca: str | None = None,
+    modelo: str | None = None,
+    dominio: str | None = None,
+    chasis: str | None = None,
+    motor: str | None = None,
+    activos_only: bool = True,
     db: Session = Depends(get_db)
 ):
+
     query = db.query(Vehiculo)
 
-    # --- Filtros dinámicos ---
-    if fecha_ingreso:
-        query = query.filter(Vehiculo.fecha_ingreso.contains(fecha_ingreso))
-
-    if marca:
-        query = query.filter(Vehiculo.marca.contains(marca))
-
-    if modelo:
-        query = query.filter(Vehiculo.modelo.contains(modelo))
-
-    if dominio:
-        query = query.filter(Vehiculo.dominio.contains(dominio))
-
-    if chasis:
-        query = query.filter(Vehiculo.chasis.contains(chasis))
-
-    if motor:
-        query = query.filter(Vehiculo.motor.contains(motor))
-
-    # Mostrar solo activos
     if activos_only:
         query = query.filter(Vehiculo.activo == True)
+
+    if fecha_ingreso:
+        query = query.filter(Vehiculo.fecha_ingreso == fecha_ingreso)
+    if marca:
+        query = query.filter(Vehiculo.marca.ilike(f"%{marca}%"))
+    if modelo:
+        query = query.filter(Vehiculo.modelo.ilike(f"%{modelo}%"))
+    if dominio:
+        query = query.filter(Vehiculo.dominio.ilike(f"%{dominio}%"))
+    if chasis:
+        query = query.filter(Vehiculo.chasis.ilike(f"%{chasis}%"))
+    if motor:
+        query = query.filter(Vehiculo.motor.ilike(f"%{motor}%"))
 
     return query.all()
 
 
+# ============================================================
+#  OBTENER VEHÍCULO POR ID
+# ============================================================
 @router.get("/{vehiculo_id}", response_model=VehiculoSchema)
 def obtener_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     veh = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
@@ -63,6 +65,9 @@ def obtener_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     return veh
 
 
+# ============================================================
+#  DAR DE BAJA (DESACTIVAR)
+# ============================================================
 @router.put("/{vehiculo_id}/baja")
 def baja_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     veh = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
@@ -72,3 +77,34 @@ def baja_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
     veh.activo = False
     db.commit()
     return {"mensaje": "Vehículo dado de baja"}
+
+
+# ============================================================
+#  NUEVA RUTA DE EGRESO (TOMA TIPO + MOTIVO)
+# ============================================================
+@router.put("/{vehiculo_id}/egreso")
+def egreso_vehiculo(
+    vehiculo_id: int,
+    data: dict,
+    db: Session = Depends(get_db)
+):
+    veh = db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+
+    tipo = data.get("tipo")
+    motivo = data.get("motivo")
+
+    # Marca el vehículo como inactivo
+    veh.activo = False
+
+    # Guarda los datos del egreso
+    if tipo:
+        veh.estado_general = tipo
+    if motivo:
+        veh.causa = motivo
+
+    db.commit()
+    db.refresh(veh)
+
+    return {"mensaje": "Vehículo egresado correctamente", "vehiculo_id": vehiculo_id}
