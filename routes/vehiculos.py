@@ -102,7 +102,7 @@ def egreso_vehiculo(
     if tipo:
         veh.estado_general = tipo
     if motivo:
-        veh.causa = motivo
+        veh.observaciones_baja = motivo
 
     db.commit()
     db.refresh(veh)

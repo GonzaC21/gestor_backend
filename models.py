@@ -21,3 +21,5 @@ class Vehiculo(Base):
     dependencia = Column(String)
     ubicacion = Column(String)
     activo = Column(Boolean, default=True)
+     # ➕ NUEVO CAMPO
+    observaciones_baja = Column(String, nullable=True)

@@ -17,6 +17,8 @@ class VehiculoBase(BaseModel):
     dependencia: str
     ubicacion: str
     activo: bool = True
+     # ➕ NUEVO
+    observaciones_baja: str | None = None
 
 class VehiculoCreate(VehiculoBase):
     pass
